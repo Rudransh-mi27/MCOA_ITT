@@ -8,7 +8,8 @@ Production-ready Node.js & Express backend for IoT gas leak detection, automated
 
 ### Base URL
 - **Local**: `http://localhost:5001` (or `http://localhost:5000`)
-- **Render Production**: `https://<your-render-app-name>.onrender.com`
+- **Render Production (24/7 Live)**: [https://lpgenius-9gls.onrender.com](https://lpgenius-9gls.onrender.com)
+- **Live Web Dashboard**: [https://lpgenius-9gls.onrender.com/dashboard](https://lpgenius-9gls.onrender.com/dashboard)
 
 ---
 

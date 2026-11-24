@@ -32,20 +32,26 @@ This update introduces a live, real-time web monitoring dashboard and hardware c
 - Alert hook on `/api/v1/alerts/gas-leak`: Updates live sensor state in memory when an alert occurs.
 
 ### 3. ESP32 Arduino Firmware (`hardware/ESP32_LPG_Node.ino`)
-- **Continuous Live Telemetry**: Transmits room air readings to `http://<LAPTOP_IP>:5001/dashboard/api/live` every 2 seconds.
-- **Emergency Dispatch**: Dispatches HTTP POST to `/api/v1/alerts/gas-leak` with hardware buzzer activation when gas level crosses 1800 PPM.
-- **Auto Reconnect**: Automatically reconnects if Wi-Fi drops.
+- **Continuous Live Telemetry**: Transmits room air readings to live Render Cloud `https://lpgenius-9gls.onrender.com/dashboard/api/live` every 2 seconds.
+- **Emergency Dispatch**: Dispatches HTTP POST to `https://lpgenius-9gls.onrender.com/api/v1/alerts/gas-leak` with hardware buzzer activation when gas level crosses 1800 PPM.
+- **Auto Reconnect & SSL**: Automatically reconnects if Wi-Fi drops and securely connects via `WiFiClientSecure`.
 - **Pin Mapping**: MQ-6 Analog on Pin 34, Buzzer on Pin 25.
 
 ---
 
-## 🚀 Running the System
+## 🚀 Running the System & Live URLs
 
+### 🌐 Live 24/7 Cloud Deployment (Render):
+- **Live Dashboard URL**: [https://lpgenius-9gls.onrender.com/dashboard](https://lpgenius-9gls.onrender.com/dashboard)
+- **Live Ingestion Endpoint**: `https://lpgenius-9gls.onrender.com/api/v1/alerts/gas-leak`
+- **Live Telemetry Endpoint**: `https://lpgenius-9gls.onrender.com/dashboard/api/live`
+
+### 💻 Local Development (Optional):
 ```bash
-# 1. Start Backend Server
+# 1. Start Local Server
 cd E:\mcoa\MCOA_ITT
 npm start
 
-# 2. Access Dashboard
+# 2. Access Local Dashboard
 http://localhost:5001/dashboard
 ```
