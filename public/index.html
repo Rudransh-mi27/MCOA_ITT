@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LPG Guard System — Live Monitoring Dashboard</title>
+  <!-- Tailwind CSS CDN for Light Mode Styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #f8fafc;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @keyframes pulse-red {
+      0%, 100% { background-color: #fee2e2; border-color: #ef4444; }
+      50% { background-color: #fecaca; border-color: #dc2626; }
+    }
+    .alarm-active {
+      animation: pulse-red 1.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+  <!-- TOP PROMINENT SOUND & SYSTEM BAR -->
+  <div class="bg-slate-900 text-white px-4 py-2.5 text-xs">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-2 font-medium">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>LPG Guard IoT Live Telemetry Network</span>
+      </div>
+
+      <!-- AUDIO & ALERT MASTER CONTROLS -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Master Reset Alert Button -->
+        <button id="masterResetBtn" onclick="resetEntireAlert()" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1.5 shadow-sm" title="Dismiss current alert and reset dashboard to Normal">
+          <span>🛑</span>
+          <span>RESET / BAND KRE ALERT</span>
+        </button>
+
+        <!-- Master Sound Off Button -->
+        <button id="masterSilenceBtn" onclick="silenceCurrentAlarm()" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 shadow-sm" title="Turn off laptop audio sound">
+          <span id="soundIcon">🔇</span>
+          <span id="soundText">SOUND: OFF (MUTED)</span>
+        </button>
+
+        <!-- Toggle Sound ON/OFF -->
+        <button id="soundToggleBtn" onclick="toggleAudioAlarm()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition flex items-center gap-1">
+          <span>🔊 Sound On</span>
+        </button>
+
+        <button onclick="testBeepSound()" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 font-medium transition text-[11px]">
+          Test Beep
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVIGATION HEADER -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center p-2 shadow-md shadow-blue-500/20">
+          <svg class="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            LPG Guard System
+            <span class="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-200">Live Monitor</span>
+          </h1>
+          <p class="text-xs text-slate-500 font-medium">ESP32 Hardware Node & Automated Multi-Channel Emergency Dispatch</p>
+        </div>
+      </div>
+
+      <!-- Sync Status -->
+      <div class="flex items-center space-x-3">
+        <div id="connectionBadge" class="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="syncText">Connected (Port 5001)</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN DASHBOARD BODY -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- 1. HERO STATUS CARD -->
+    <div id="statusBanner" class="p-6 rounded-2xl bg-white border border-emerald-200 shadow-sm transition-all duration-300">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-start space-x-4">
+          <div id="statusIconWrap" class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 text-2xl shadow-inner">
+            🛡️
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="statusTag" class="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                SYSTEM NORMAL
+              </span>
+              <span id="lastUpdatedText" class="text-xs text-slate-400">Syncing live...</span>
+            </div>
+            <h2 id="statusHeadline" class="text-xl font-bold text-slate-900 mt-1">
+              All Premise Zones Protected & Secure
+            </h2>
+            <p id="statusSubtext" class="text-sm text-slate-600 mt-0.5">
+              Gas concentrations are within safe baseline limits. Emergency dispatch is standing by.
+            </p>
+          </div>
+        </div>
+
+        <div id="alarmActiveBox" class="hidden shrink-0 flex flex-wrap items-center gap-2">
+          <!-- Button 1: Only mute the sound -->
+          <button onclick="silenceCurrentAlarm()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5" title="Laptop ke speaker se beep sound band kare">
+            <span class="text-base">🔇</span>
+            <span>MUTE SOUND ONLY</span>
+          </button>
+          <!-- Button 2: Completely cancel/dismiss the alert and reset to safe -->
+          <button onclick="resetEntireAlert()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 animate-bounce" title="Poora alert band kare aur website normal kare">
+            <span class="text-base">🛑</span>
+            <span>DISMISS & POORA ALERT BAND KARE</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. SPEEDOMETER & REAL-TIME READINGS -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- GAUGE CARD -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+        <div class="flex items-center justify-between w-full mb-2">
+          <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Live Gas Concentration</h3>
+          <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono-code font-semibold">Real-Time MQ-6</span>
+        </div>
+
+        <!-- Canvas Speedometer -->
+        <div class="relative w-full max-w-[280px] aspect-[1.3] flex items-center justify-center">
+          <canvas id="gaugeCanvas" width="280" height="200" class="w-full"></canvas>
+        </div>
+
+        <!-- Digital Gas Value -->
+        <div class="mt-1">
+          <div class="flex items-baseline justify-center space-x-1.5">
+            <span id="currentGasValue" class="text-4xl font-extrabold font-mono-code text-slate-900 tracking-tight">0</span>
+            <span class="text-sm font-bold text-slate-500 uppercase">PPM</span>
+          </div>
+          <p id="gasSafetyLabel" class="text-xs font-semibold text-emerald-600 mt-1">Safe Air Quality</p>
+        </div>
+
+        <!-- Scale Legend -->
+        <div class="w-full grid grid-cols-3 gap-1 mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+          <div class="flex items-center justify-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 0 - 1000
+          </div>
+          <div class="flex items-center justify-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span> 1000 - 1800
+          </div>
+          <div class="flex items-center justify-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span> 1800+
+          </div>
+        </div>
+      </div>
+
+      <!-- KEY METRICS CARDS -->
+      <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
+        <!-- Metric Card 1: Safety Threshold -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shrink-0">
+            ⚖️
+          </div>
+          <div>
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Alarm Trip Threshold</p>
+            <h4 id="thresholdValue" class="text-2xl font-bold font-mono-code text-slate-900 mt-0.5">1800 PPM</h4>
+            <p class="text-xs text-slate-500 mt-0.5">Alerts trigger when gas crosses 1800 PPM</p>
+          </div>
+        </div>
+
+        <!-- Metric Card 2: Active Monitoring Zone -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shrink-0">
+            📍
+          </div>
+          <div>
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Monitored Zone</p>
+            <h4 id="locationValue" class="text-lg font-bold text-slate-900 mt-0.5 truncate">Kitchen Cylinder Area</h4>
+            <p id="deviceIdValue" class="text-xs text-slate-500 font-mono-code mt-0.5">Node: ESP32_NODE_01</p>
+          </div>
+        </div>
+
+        <!-- Metric Card 3: Multi-Channel Engine Status -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between sm:col-span-2">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Multi-Channel Notification Engine</span>
+            <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Parallel Broadcast Active</span>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center space-x-3">
+              <span class="text-lg">🔔</span>
+              <div>
+                <p class="text-xs font-bold text-slate-800">Pushover Siren</p>
+                <p class="text-[11px] text-emerald-600 font-semibold">Priority 2 Ready</p>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center space-x-3">
+              <span class="text-lg">📱</span>
+              <div>
+                <p class="text-xs font-bold text-slate-800">Textbee SMS</p>
+                <p class="text-[11px] text-emerald-600 font-semibold">+916394284933 Ready</p>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center space-x-3">
+              <span class="text-lg">💬</span>
+              <div>
+                <p class="text-xs font-bold text-slate-800">Twilio WhatsApp</p>
+                <p class="text-[11px] text-emerald-600 font-semibold">Verified Sandbox Ready</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 3. RECENT ALERT INCIDENTS TABLE -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Incident Event History</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Database records logged from hardware alerts</p>
+        </div>
+        <button onclick="fetchDashboardData()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Refresh
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+              <th class="py-3 px-6">Timestamp</th>
+              <th class="py-3 px-6">Device Node</th>
+              <th class="py-3 px-6">Location</th>
+              <th class="py-3 px-6">Gas Level</th>
+              <th class="py-3 px-6">Severity</th>
+              <th class="py-3 px-6">Dispatch Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody" class="divide-y divide-slate-100 text-xs text-slate-700">
+            <tr>
+              <td colspan="6" class="text-center py-8 text-slate-400">Loading alert records...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+    <p>LPG Guard System © 2026 — Track 2 Alert Integration Engine & IoT Node Monitoring</p>
+  </footer>
+
+  <!-- JAVASCRIPT: DASHBOARD LOGIC, AUDIO CONTROL & LIVE GAUGE -->
+  <script>
+    let audioAlarmEnabled = false; // Starts muted/safe so it does not annoy user automatically
+    let audioContext = null;
+    let alarmIntervalId = null;
+    let isAlarmSounding = false;
+    let currentThreshold = 1800;
+
+    // Web Audio Synthesizer
+    function getAudioContext() {
+      if (!audioContext) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioCtx();
+      }
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      return audioContext;
+    }
+
+    function playEmergencyBeep(freq = 900, duration = 0.2) {
+      if (!audioAlarmEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, ctx.currentTime + duration);
+
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {
+        console.warn('Audio restricted by browser policy:', e);
+      }
+    }
+
+    function testBeepSound() {
+      const prev = audioAlarmEnabled;
+      audioAlarmEnabled = true;
+      playEmergencyBeep(880, 0.25);
+      setTimeout(() => playEmergencyBeep(1200, 0.25), 300);
+      setTimeout(() => { audioAlarmEnabled = prev; }, 600);
+    }
+
+    function startAlarmSiren() {
+      if (!audioAlarmEnabled || isAlarmSounding) return;
+      isAlarmSounding = true;
+      
+      playEmergencyBeep(800, 0.2);
+      setTimeout(() => playEmergencyBeep(1100, 0.2), 250);
+
+      alarmIntervalId = setInterval(() => {
+        if (!audioAlarmEnabled) {
+          stopAlarmSiren();
+          return;
+        }
+        playEmergencyBeep(800, 0.2);
+        setTimeout(() => playEmergencyBeep(1100, 0.2), 250);
+      }, 1500);
+    }
+
+    let isDismissedByUser = false;
+
+    function stopAlarmSiren() {
+      if (alarmIntervalId) {
+        clearInterval(alarmIntervalId);
+        alarmIntervalId = null;
+      }
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.suspend().catch(() => {});
+      }
+      isAlarmSounding = false;
+    }
+
+    // Direct Silence button (Sound Only Band Kare)
+    function silenceCurrentAlarm() {
+      stopAlarmSiren();
+      audioAlarmEnabled = false;
+      const soundText = document.getElementById('soundText');
+      const soundIcon = document.getElementById('soundIcon');
+      if (soundText) soundText.textContent = 'SOUND: OFF (MUTED)';
+      if (soundIcon) soundIcon.textContent = '🔇';
+    }
+
+    // Poora Alert Band Kare & Reset to System Normal
+    async function resetEntireAlert() {
+      stopAlarmSiren();
+      silenceCurrentAlarm();
+      isDismissedByUser = true;
+
+      // Backend memory state ko reset kare
+      try {
+        await fetch('/dashboard/api/reset', { method: 'POST' });
+      } catch (e) {
+        console.warn('Reset API error:', e);
+      }
+
+      // Website UI ko turant NORMAL kare
+      const banner = document.getElementById('statusBanner');
+      const iconWrap = document.getElementById('statusIconWrap');
+      const tag = document.getElementById('statusTag');
+      const headline = document.getElementById('statusHeadline');
+      const subtext = document.getElementById('statusSubtext');
+      const safetyLabel = document.getElementById('gasSafetyLabel');
+      const alarmActiveBox = document.getElementById('alarmActiveBox');
+
+      banner.className = 'p-6 rounded-2xl bg-white border border-emerald-200 shadow-sm transition-all duration-300';
+      iconWrap.className = 'w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 text-2xl shadow-inner';
+      iconWrap.textContent = '🛡️';
+
+      tag.className = 'text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800';
+      tag.textContent = 'SYSTEM NORMAL (ALERT DISMISSED)';
+
+      headline.textContent = 'Alert Manually Dismissed — All Premise Zones Protected';
+      subtext.textContent = 'Gas reading reset to normal baseline (220 PPM). Normal telemetry mode active.';
+
+      safetyLabel.textContent = 'Safe Air Quality (Normal)';
+      safetyLabel.className = 'text-xs font-semibold text-emerald-600 mt-1';
+
+      document.getElementById('currentGasValue').textContent = '220';
+      drawSpeedometer(220, 4000);
+      alarmActiveBox.classList.add('hidden');
+    }
+
+    function toggleAudioAlarm() {
+      audioAlarmEnabled = !audioAlarmEnabled;
+      const soundText = document.getElementById('soundText');
+      const soundIcon = document.getElementById('soundIcon');
+
+      if (audioAlarmEnabled) {
+        soundText.textContent = 'SOUND: ON (ENABLED)';
+        soundIcon.textContent = '🔊';
+        testBeepSound();
+      } else {
+        stopAlarmSiren();
+        soundText.textContent = 'SOUND: OFF (MUTED)';
+        soundIcon.textContent = '🔇';
+      }
+    }
+
+    // Canvas Speedometer Gauge
+    function drawSpeedometer(value, max = 4000) {
+      const canvas = document.getElementById('gaugeCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const centerX = width / 2;
+      const centerY = height - 20;
+      const radius = 100;
+      const startAngle = Math.PI;
+      const endAngle = 2 * Math.PI;
+
+      // Outer Arc
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, startAngle, endAngle, false);
+      ctx.lineWidth = 18;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // 1. Safe (Green: 0 - 1000)
+      const safeAngle = startAngle + (1000 / max) * Math.PI;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, startAngle, safeAngle, false);
+      ctx.lineWidth = 18;
+      ctx.strokeStyle = '#10b981';
+      ctx.stroke();
+
+      // 2. Warning (Amber: 1000 - 1800)
+      const warningAngle = startAngle + (1800 / max) * Math.PI;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, safeAngle, warningAngle, false);
+      ctx.lineWidth = 18;
+      ctx.strokeStyle = '#f59e0b';
+      ctx.stroke();
+
+      // 3. Danger (Red: 1800 - 4000)
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, warningAngle, endAngle, false);
+      ctx.lineWidth = 18;
+      ctx.strokeStyle = '#ef4444';
+      ctx.stroke();
+
+      // Clamp value
+      const clampedVal = Math.max(0, Math.min(value, max));
+      const needleAngle = startAngle + (clampedVal / max) * Math.PI;
+
+      // Draw Needle
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(needleAngle - Math.PI / 2);
+
+      ctx.beginPath();
+      ctx.moveTo(-5, 0);
+      ctx.lineTo(0, -radius + 8);
+      ctx.lineTo(5, 0);
+      ctx.fillStyle = '#1e293b';
+      ctx.fill();
+
+      // Pin
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, 2 * Math.PI);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // Live Data Fetching
+    async function fetchDashboardData() {
+      try {
+        const response = await fetch('/dashboard/api/data');
+        if (!response.ok) throw new Error('Network error');
+
+        const data = await response.json();
+        updateDashboardUI(data);
+
+        const badge = document.getElementById('connectionBadge');
+        const syncText = document.getElementById('syncText');
+        if (badge) badge.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+        if (syncText) syncText.textContent = 'Connected (Port 5001 Live)';
+      } catch (err) {
+        console.warn('Dashboard fetch error:', err.message);
+        const badge = document.getElementById('connectionBadge');
+        const syncText = document.getElementById('syncText');
+        if (badge) badge.className = 'flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+        if (syncText) syncText.textContent = 'Disconnected (Backend Server Band Hai - npm start karein)';
+      }
+    }
+
+    function updateDashboardUI(data) {
+      const live = data.live || {};
+      const latest = data.latest;
+      const history = data.history || [];
+
+      document.getElementById('lastUpdatedText').textContent = 'Synced ' + new Date().toLocaleTimeString();
+
+      let gasLevel = live.gasLevel !== undefined ? live.gasLevel : (latest ? latest.gasLevel : 0);
+      const threshold = live.threshold || (latest ? latest.threshold : 1800);
+      const location = live.location || (latest ? latest.location : 'Kitchen Cylinder Area');
+      const deviceId = live.deviceId || (latest ? latest.deviceId : 'ESP32_NODE_01');
+
+      currentThreshold = threshold;
+
+      // Check Hazard condition: Gas Level strictly crosses threshold (1800 PPM)
+      const isHazard = gasLevel > threshold;
+
+      // JAISE HI READING 1800 SE KAM HOTI HAI:
+      // Automatic NORMAL ho jaye, user dismiss flag clear ho jaye, aur sound siren ruk jaye
+      if (!isHazard) {
+        isDismissedByUser = false;
+      }
+
+      // Agar user ne manually alert band kiya hai to safe baseline dikhaye
+      if (isDismissedByUser) {
+        gasLevel = 220;
+      }
+
+      document.getElementById('currentGasValue').textContent = gasLevel;
+      document.getElementById('thresholdValue').textContent = threshold + ' PPM';
+      document.getElementById('locationValue').textContent = location;
+      document.getElementById('deviceIdValue').textContent = 'Node ID: ' + deviceId;
+
+      drawSpeedometer(gasLevel, 4000);
+
+      const banner = document.getElementById('statusBanner');
+      const iconWrap = document.getElementById('statusIconWrap');
+      const tag = document.getElementById('statusTag');
+      const headline = document.getElementById('statusHeadline');
+      const subtext = document.getElementById('statusSubtext');
+      const safetyLabel = document.getElementById('gasSafetyLabel');
+      const alarmActiveBox = document.getElementById('alarmActiveBox');
+
+      if (isHazard && !isDismissedByUser) {
+        banner.className = 'p-6 rounded-2xl bg-rose-50 border-2 border-rose-500 shadow-lg alarm-active transition-all duration-300';
+        iconWrap.className = 'w-14 h-14 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 text-2xl shadow-lg';
+        iconWrap.textContent = '🚨';
+
+        tag.className = 'text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-rose-600 text-white';
+        tag.textContent = 'CRITICAL LEAK DETECTED';
+
+        headline.textContent = 'Emergency Alert: Gas Leakage Detected at ' + location + '!';
+        subtext.textContent = 'Reading: ' + gasLevel + ' PPM (Threshold: ' + threshold + ' PPM). Evacuate immediately!';
+        
+        safetyLabel.textContent = 'DANGER: Gas Concentration Hazardous';
+        safetyLabel.className = 'text-xs font-bold text-rose-600 mt-1';
+
+        alarmActiveBox.classList.remove('hidden');
+
+        if (audioAlarmEnabled) {
+          startAlarmSiren();
+        }
+      } else {
+        // AUTOMATIC UPDATE TO SAFE SYSTEM NORMAL:
+        banner.className = 'p-6 rounded-2xl bg-white border border-emerald-200 shadow-sm transition-all duration-300';
+        iconWrap.className = 'w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 text-2xl shadow-inner';
+        iconWrap.textContent = '🛡️';
+
+        tag.className = 'text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800';
+        tag.textContent = 'SYSTEM NORMAL';
+
+        headline.textContent = 'All Premise Zones Protected & Secure';
+        subtext.textContent = 'Gas concentrations are below safety threshold (' + gasLevel + ' PPM). Emergency dispatch standby.';
+
+        if (gasLevel > 1000) {
+          safetyLabel.textContent = 'Elevated Gas Level (Moderate)';
+          safetyLabel.className = 'text-xs font-bold text-amber-600 mt-1';
+        } else {
+          safetyLabel.textContent = 'Safe Air Quality (Normal)';
+          safetyLabel.className = 'text-xs font-semibold text-emerald-600 mt-1';
+        }
+
+        alarmActiveBox.classList.add('hidden');
+        stopAlarmSiren();
+      }
+
+      renderHistoryTable(history);
+    }
+
+    function renderHistoryTable(history) {
+      const tbody = document.getElementById('historyTableBody');
+      if (!history || history.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">No alert incidents recorded yet.</td></tr>';
+        return;
+      }
+
+      let html = '';
+      history.forEach(item => {
+        const date = new Date(item.timestamp).toLocaleString();
+        const isCritical = item.severity === 'CRITICAL' || item.gasLevel > (item.threshold || 1800);
+        
+        let statusBadge = '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">SENT</span>';
+        if (item.dispatchStatus === 'COOLDOWN_SKIPPED') {
+          statusBadge = '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">COOLDOWN_SKIPPED</span>';
+        } else if (item.dispatchStatus === 'FAILED') {
+          statusBadge = '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">FAILED</span>';
+        }
+
+        const severityBadge = isCritical 
+          ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">CRITICAL</span>'
+          : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">WARNING</span>';
+
+        html += `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-6 font-mono-code text-slate-600">${date}</td>
+            <td class="py-3 px-6 font-mono-code font-bold text-slate-800">${item.deviceId}</td>
+            <td class="py-3 px-6 text-slate-700">${item.location || 'Unknown'}</td>
+            <td class="py-3 px-6 font-mono-code font-bold ${isCritical ? 'text-rose-600' : 'text-slate-800'}">${item.gasLevel} PPM</td>
+            <td class="py-3 px-6">${severityBadge}</td>
+            <td class="py-3 px-6">${statusBadge}</td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    // Auto-Sync Every 1 Second
+    window.addEventListener('load', () => {
+      drawSpeedometer(240, 4000);
+      fetchDashboardData();
+      setInterval(fetchDashboardData, 1000);
+
+      document.body.addEventListener('click', () => {
+        getAudioContext();
+      }, { once: true });
+    });
+  </script>
+</body>
+</html>
