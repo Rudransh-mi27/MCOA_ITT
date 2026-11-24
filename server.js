@@ -77,16 +77,19 @@ app.get('/dashboard/api/data', async (req, res) => {
     const history = await AlertLog.find().sort({ timestamp: -1 }).limit(20);
 
     // If an alert exists and no live telemetry was received in the last 10 seconds,
-    // show the latest recorded incident gas level
+    // only sync from latest if it was logged recently (within the last 60 seconds)
     const isLiveTelemetryFresh = liveSensorState.lastSeen && 
       (Date.now() - new Date(liveSensorState.lastSeen).getTime()) < 10000;
 
     if (!isLiveTelemetryFresh && latest) {
-      liveSensorState.gasLevel = latest.gasLevel;
-      liveSensorState.threshold = latest.threshold || 1800;
-      liveSensorState.location = latest.location || liveSensorState.location;
-      liveSensorState.deviceId = latest.deviceId || liveSensorState.deviceId;
-      liveSensorState.lastSeen = latest.timestamp;
+      const isLatestRecent = (Date.now() - new Date(latest.timestamp).getTime()) < 60000;
+      if (isLatestRecent) {
+        liveSensorState.gasLevel = latest.gasLevel;
+        liveSensorState.threshold = latest.threshold || 1800;
+        liveSensorState.location = latest.location || liveSensorState.location;
+        liveSensorState.deviceId = latest.deviceId || liveSensorState.deviceId;
+        liveSensorState.lastSeen = latest.timestamp;
+      }
     }
 
     res.status(200).json({
