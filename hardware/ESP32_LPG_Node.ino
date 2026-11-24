@@ -26,7 +26,7 @@ unsigned long lastAlertTime = 0;
 const unsigned long ALERT_INTERVAL = 30000; // Emergency alert har 30s me ek baar dispatch hoga
 
 unsigned long lastTelemetryTime = 0;
-const unsigned long TELEMETRY_INTERVAL = 2000; // Live reading har 2 second me website ko jayegi
+const unsigned long TELEMETRY_INTERVAL = 3000; // Live reading har 3 second me website ko jayegi
 
 void setup() {
   Serial.begin(115200);
@@ -41,28 +41,28 @@ void setup() {
   Serial.println(ssid);
 
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true); // ESP32 background me khud reconnect sambhalega bina spam kiye
+  WiFi.persistent(true);
   WiFi.begin(ssid, password);
 
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 30) {
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    retries++;
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n✅ WiFi Connected Successfully!");
-    Serial.print("ESP32 IP: ");
-    Serial.println(WiFi.localIP());
-    Serial.println("Target Server: https://lpgenius-9gls.onrender.com");
-  } else {
-    Serial.println("\n❌ WiFi Connection Failed! Check SSID/Password.");
-  }
+  Serial.println("\n✅ WiFi Connected Successfully!");
+  Serial.print("ESP32 IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println("Target Server: https://lpgenius-9gls.onrender.com");
 }
 
 void loop() {
-  // Wi-Fi Auto-Reconnect Check
-  if (WiFi.status() != WL_CONNECTED) {
+  // Wi-Fi Reconnect (Har 10 second me check karega, taaki loop spam na ho)
+  static unsigned long lastWiFiCheck = 0;
+  if (WiFi.status() != WL_CONNECTED && millis() - lastWiFiCheck > 10000) {
+    lastWiFiCheck = millis();
+    Serial.println("⚠️ WiFi Disconnected! Reconnecting...");
+    WiFi.disconnect();
     WiFi.reconnect();
   }
 
@@ -151,7 +151,8 @@ void sendLiveTelemetry(int gasLevel) {
     Serial.print(gasLevel);
     Serial.println(" PPM");
   } else {
-    Serial.println("⚠️ Cloud Telemetry ping failed.");
+    Serial.print("⚠️ Cloud Telemetry failed, Error code: ");
+    Serial.println(code);
   }
   http.end();
 }
