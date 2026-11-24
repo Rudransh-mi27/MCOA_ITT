@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 // ================= 1. HARDWARE PIN CONFIGURATION =================
 #define MQ6_PIN 34
@@ -7,21 +8,16 @@
 int threshold = 1800;
 // =================================================================
 
-// ================= 2. WI-FI & LAPTOP CONFIGURATION ===============
-// Apna Wi-Fi / Hotspot ka naam aur password yahan daalein:
+// ================= 2. WI-FI & RENDER CLOUD CONFIGURATION =========
+// Apna Wi-Fi / Hotspot details daalein:
 const char* ssid = "system";            // <-- Apna WiFi naam
 const char* password = "AAPKA_PASSWORD"; // <-- Apna WiFi Password
 
-// Aapke laptop ka current IP address (Port 5001 ke sath):
-const char* LAPTOP_IP = "10.53.76.200"; 
+// Aapka Live Render Public Cloud URLs (24/7 Active Worldwide):
+String emergencyUrl = "https://lpgenius-9gls.onrender.com/api/v1/alerts/gas-leak";
+String liveTelemetryUrl = "https://lpgenius-9gls.onrender.com/dashboard/api/live";
 
-// 1. Emergency Alert Endpoint (Jab gas > 1800 ho tab SMS/WhatsApp bhejta hai)
-String emergencyUrl = "http://" + String(LAPTOP_IP) + ":5001/api/v1/alerts/gas-leak";
-
-// 2. Real-Time Live Telemetry Endpoint (Website speedometer ko live update karne ke liye)
-String liveTelemetryUrl = "http://" + String(LAPTOP_IP) + ":5001/dashboard/api/live";
-
-// Backend Secret Key (Member 1 ke auth ke liye)
+// Backend Secret Key
 const char* deviceSecret = "esp32_super_secret_key_123";
 // =================================================================
 
@@ -39,7 +35,7 @@ void setup() {
 
   // Wi-Fi Connection Setup
   Serial.println("\n======================================");
-  Serial.println("  LPG Guard System (ESP32 Node)       ");
+  Serial.println("  LPG Guard System (Live Cloud Node)  ");
   Serial.println("======================================");
   Serial.print("Connecting to WiFi: ");
   Serial.println(ssid);
@@ -58,15 +54,14 @@ void setup() {
     Serial.println("\n✅ WiFi Connected Successfully!");
     Serial.print("ESP32 IP: ");
     Serial.println(WiFi.localIP());
-    Serial.print("Target Laptop Server: ");
-    Serial.println(LAPTOP_IP);
+    Serial.println("Target Server: https://lpgenius-9gls.onrender.com");
   } else {
     Serial.println("\n❌ WiFi Connection Failed! Check SSID/Password.");
   }
 }
 
 void loop() {
-  // Wi-Fi Reconnect Check
+  // Wi-Fi Auto-Reconnect Check
   if (WiFi.status() != WL_CONNECTED) {
     WiFi.reconnect();
   }
@@ -74,27 +69,26 @@ void loop() {
   // 1. Read Gas Sensor
   int gasValue = analogRead(MQ6_PIN);
   
-  Serial.print("MQ-6 Gas Reading: ");
+  Serial.print("MQ-6 Reading: ");
   Serial.print(gasValue);
   Serial.println(" PPM");
 
   // 2. DANGER ZONE CONDITION (gas > 1800)
   if (gasValue > threshold) {
-    tone(BUZZER_PIN, 2500);  // 🔊 Physical Buzzer ON
+    tone(BUZZER_PIN, 2500);  // 🔊 Hardware Buzzer ON
 
     // Emergency SMS / WhatsApp / Pushover Dispatch (Cooldown: 30s)
     if (millis() - lastAlertTime > ALERT_INTERVAL) {
-      Serial.println("🚨 [EMERGENCY] Leak Detected! Dispatching Multi-Channel Alerts...");
+      Serial.println("🚨 [EMERGENCY] Leak Detected! Dispatching to Render Cloud...");
       sendEmergencyAlert(gasValue);
       lastAlertTime = millis();
     }
   } 
   else {
-    noTone(BUZZER_PIN);      // 🔇 Physical Buzzer OFF (Safe)
+    noTone(BUZZER_PIN);      // 🔇 Hardware Buzzer OFF (Safe)
   }
 
-  // 3. CONTINUOUS LIVE TELEMETRY (Har 2 second me website ki sui update kare)
-  // Yeh reading 1800 se kam hone par website ko turant GREEN NORMAL kar dega!
+  // 3. CONTINUOUS LIVE TELEMETRY (Har 2 second me website dashboard par live needle update)
   if (millis() - lastTelemetryTime > TELEMETRY_INTERVAL) {
     sendLiveTelemetry(gasValue);
     lastTelemetryTime = millis();
@@ -109,8 +103,11 @@ void loop() {
 void sendEmergencyAlert(int gasLevel) {
   if (WiFi.status() != WL_CONNECTED) return;
 
+  WiFiClientSecure client;
+  client.setInsecure(); // Render HTTPS SSL connection bina kisi error ke allow kare
+
   HTTPClient http;
-  http.begin(emergencyUrl);
+  http.begin(client, emergencyUrl);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("x-device-secret", deviceSecret);
 
@@ -123,7 +120,7 @@ void sendEmergencyAlert(int gasLevel) {
   "}";
 
   int code = http.POST(payload);
-  Serial.print("🚨 Emergency Alert Sent -> Response Code: ");
+  Serial.print("🚨 Cloud Emergency Alert Sent -> Response Code: ");
   Serial.println(code);
   http.end();
 }
@@ -134,8 +131,11 @@ void sendEmergencyAlert(int gasLevel) {
 void sendLiveTelemetry(int gasLevel) {
   if (WiFi.status() != WL_CONNECTED) return;
 
+  WiFiClientSecure client;
+  client.setInsecure(); // Render HTTPS SSL connection bina kisi error ke allow kare
+
   HTTPClient http;
-  http.begin(liveTelemetryUrl);
+  http.begin(client, liveTelemetryUrl);
   http.addHeader("Content-Type", "application/json");
 
   String payload = "{"
@@ -147,11 +147,11 @@ void sendLiveTelemetry(int gasLevel) {
 
   int code = http.POST(payload);
   if (code > 0) {
-    Serial.print("📡 Live Telemetry Synced with Website -> ");
+    Serial.print("📡 Live Telemetry Synced with Cloud -> ");
     Serial.print(gasLevel);
     Serial.println(" PPM");
   } else {
-    Serial.println("⚠️ Live Telemetry ping failed (Check if Laptop Server is running).");
+    Serial.println("⚠️ Cloud Telemetry ping failed.");
   }
   http.end();
 }
