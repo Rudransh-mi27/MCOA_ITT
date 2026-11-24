@@ -3,6 +3,9 @@
 ## 📌 Overview
 This update introduces a live, real-time web monitoring dashboard and hardware continuous telemetry integration to complement the Track 2 Multi-Channel Alert Engine.
 
+## 📸 Live Dashboard Preview
+![LPG Guard Live Monitoring Dashboard](docs/images/dashboard_preview.png)
+
 ---
 
 ## 🛠️ Key Additions & Updates
